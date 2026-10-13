@@ -12,6 +12,9 @@
 # MODE=update|rebuild|check forces that step instead of the automatic choice.
 # Access (RUNBOOK "Access management"):  MODE=access bash go.sh,
 #   MODE=grant EMAIL=<address> INSTITUTE=<id or exact name> [UNTIL=YYYY-MM-DD] bash go.sh, ...
+# Every update starts with a snapshot. If one goes wrong (RUNBOOK "If an update goes wrong"):
+#   MODE=snapshots bash go.sh                 lists them
+#   MODE=rollback [SNAPSHOT=<id>] bash go.sh  restores code, settings and images (default: newest)
 set -uo pipefail
 # Files come over HTTPS from the source server (FTP was closed on this network).
 BASE="${BASE:-https://fhlcinadayuuat.blob.core.windows.net/fortis-uat-transfer}"
@@ -123,9 +126,11 @@ else
   # only those steps carry it, so an EMAIL set in the shell's profile goes nowhere else.
   # %q quotes every value, and run.sh checks each one before it is used.
   case "${MODE:-}" in admin-add|admin-remove|grant|revoke|institutes) ;; *) EMAIL=""; INSTITUTE=""; UNTIL=""; MIN_MEMBERS="";; esac
-  printf 'DOMAIN=%q\nBASE=%q\nQS=%q\nDIR=%q\nMODE=%q\nSTUB=%q\nCODE=%q\nEMAIL=%q\nINSTITUTE=%q\nUNTIL=%q\nMIN_MEMBERS=%q\n' \
+  # The same for MODE=rollback's SNAPSHOT (checked by run.sh before use).
+  [ "${MODE:-}" = rollback ] || SNAPSHOT=""
+  printf 'DOMAIN=%q\nBASE=%q\nQS=%q\nDIR=%q\nMODE=%q\nSTUB=%q\nCODE=%q\nEMAIL=%q\nINSTITUTE=%q\nUNTIL=%q\nMIN_MEMBERS=%q\nSNAPSHOT=%q\n' \
     "${NEW_DOMAIN:-uat.adayu.com}" "$BASE" "$QS" "$DIR" "${MODE:-}" "${STUB:-}" "${CODE:-/opt/fortis}" \
-    "${EMAIL:-}" "${INSTITUTE:-}" "${UNTIL:-}" "${MIN_MEMBERS:-}" | sudo tee "$BIN/settings" >/dev/null
+    "${EMAIL:-}" "${INSTITUTE:-}" "${UNTIL:-}" "${MIN_MEMBERS:-}" "${SNAPSHOT:-}" | sudo tee "$BIN/settings" >/dev/null
   sudo truncate -s0 "$LOG" 2>/dev/null || true
   sudo systemd-run --unit="$UNIT" --collect --quiet -p StandardOutput=append:"$LOG" -p StandardError=append:"$LOG" \
        bash "$BIN/run.sh" || { echo "Could not start the setup service."; exit 1; }
